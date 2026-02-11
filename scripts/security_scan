@@ -1,0 +1,4 @@
+#!/bin/bash
+echo "Running vulnerability scan..."
+nmap -A localhost
+nikto -h http://localhost
