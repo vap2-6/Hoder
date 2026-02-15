@@ -4,6 +4,7 @@ from ..database import get_db
 from ..models import User
 from ..schemas import UserCreate, UserLogin
 from ..auth import hash_password, verify_password, create_access_token
+from ..models import RefreshToken
 
 router = APIRouter()
 
@@ -24,7 +25,6 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
     return {"message": "User registered successfully"}
 
-
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
@@ -32,9 +32,23 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     if not db_user or not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_access_token({
+    access_token = create_access_token({
         "sub": db_user.email,
         "role": db_user.role
     })
 
-    return {"access_token": token, "token_type": "bearer"}
+    refresh_token = create_refresh_token()
+
+    db_refresh = RefreshToken(
+        token=refresh_token,
+        user_id=db_user.id
+    )
+
+    db.add(db_refresh)
+    db.commit()
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
