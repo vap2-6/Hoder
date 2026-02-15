@@ -1,12 +1,18 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, status
 from jose import jwt, JWTError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
+
 from .config import settings
+from .database import get_db
+from .models import User
 
 security = HTTPBearer()
 
+
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
 ):
     token = credentials.credentials
 
@@ -16,19 +22,37 @@ def get_current_user(
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
-        email = payload.get("sub")
-        role = payload.get("role")
+
+        email: str = payload.get("sub")
+        role: str = payload.get("role")
 
         if email is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-
-        return {"email": email, "role": role}
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token"
+            )
 
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
 
+    user = db.query(User).filter(User.email == email).first()
 
-def require_admin(user: dict = Depends(get_current_user)):
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+
     return user
+
+
+def require_admin(current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
