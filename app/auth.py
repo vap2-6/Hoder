@@ -3,6 +3,12 @@ from jose import jwt
 from passlib.context import CryptContext
 from .config import settings
 
+
+import secrets
+def create_refresh_token():
+    return secrets.token_urlsafe(64)
+
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str):
